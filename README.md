@@ -13,14 +13,16 @@
 ### Main applications
 
 - Gross-level human motion analysis (e.g., strength and conditioning movement assessments)
-  
-- - Mediolateral, Anteroposterior, and Vertical Axis rotations for hip and knee joint (based on the International Society of Biomechanics (ISB) recommendations by [Wu and Cavanagh](https://www.ece.uvic.ca/~bctill/papers/mocap/Wu_Cavanagh_1995.pdf) (1995) and [Wu et al.](https://www.sciencedirect.com/science/article/pii/S0021929001002226?casa_token=2dAvjy8tpVsAAAAA:WMEtDcaXO0Jrg_GirWFR84c3w4etz7MzVceTSjGYivBhKOUqNOeWdkNDgGFfgN9g4q-3XHU43w) (2002). Also see [Research Methods in Biomechanics](https://www.amazon.ca/Research-Methods-Biomechanics-2nd-Gordon-Robertson/dp/0736093400) by Gordon Roberston et al. for more information)
+
+- Mediolateral, Anteroposterior, and Vertical Axis rotations for hip and knee joint (based on the International Society of Biomechanics (ISB) recommendations by [Wu and Cavanagh](https://www.ece.uvic.ca/~bctill/papers/mocap/Wu_Cavanagh_1995.pdf) (1995) and [Wu et al.](https://www.sciencedirect.com/science/article/pii/S0021929001002226?casa_token=2dAvjy8tpVsAAAAA:WMEtDcaXO0Jrg_GirWFR84c3w4etz7MzVceTSjGYivBhKOUqNOeWdkNDgGFfgN9g4q-3XHU43w) (2002). Also see [Research Methods in Biomechanics](https://www.amazon.ca/Research-Methods-Biomechanics-2nd-Gordon-Robertson/dp/0736093400) by Gordon Roberston et al. for more information)
+
   - Joint center tracking (25 total "joints", elaborated on more below)
 
 - Teaching tool for undergraduate or graduate students (depending on how much "raw" data is made available)
 
-- - Can be scaled for undergraduate and graduate students in kinesiology, physiotherapy, chiropractic, engineering, or related disciplines
-  - Much easier (and cheaper) to first learn with a markerless system relative to a marker-based system!
+- Can be scaled for undergraduate and graduate students in kinesiology, physiotherapy, chiropractic, engineering, or related disciplines
+
+  Much easier (and cheaper) to first learn with a markerless system relative to a marker-based system!
 
 
 
@@ -28,7 +30,7 @@
 
 - Provide a rigorous overview of the math and other skills required for collecting and processing motion data (for markerless or marker-based systems).
 
-- - Some supplementary information is available for students or researchers who may want an additional refresher of the material or a better understanding of the computations without digging into the code right away.
+  - Some supplementary information is available for students or researchers who may want an additional refresher of the material or a better understanding of the computations without digging into the code right away.
 
 - Teach you how to analyze your data following its extraction appropriately.
 
@@ -42,11 +44,11 @@
 
 - `.\DumpKinectSkeleton.exe --prefix=<prefix>` is the command to collect the data with the connect. Make sure that a standing calibration (in anatomical position ) is collected along with any motion trials. This has been cloned from the [DumpKinectSkeleton repository created by sebtoun](https://github.com/sebtoun/DumpKinectSkeleton) (Sebastien Andary)
 
-- - only runs with Windows 8 or later.
+  - only runs with Windows 8 or later.
 
 - `python kinectPipeline.py -i <inputfile> -c <calfile> -o <outputfile>` is the command to take the csv outputs from the DumpKinectSkeleton command and create a new csv file with joint angles based on ISB recommendations.
 
-- - can be used with Windows, macOS, or Linux as long as you have Python 3.7, Pandas, NumPy, and SciPy installed.
+  - can be used with Windows, macOS, or Linux as long as you have Python 3.7, Pandas, NumPy, and SciPy installed.
 
 
 
@@ -115,7 +117,7 @@ Third, I want to expand upon using the package for those unfamiliar with using a
 
 Then, unzip the folder and save it to another directory. I would suggest moving it into Documents, but you can hypothetically place this folder anywhere that you'll remember it. Then, you will need to open PowerShell.
 
-![](pictures/powerShell.PNG)
+![](pictures/powerShell.png)
 
 To navigate within PowerShell, you use the command `cd` followed by the pathname. For example, suppose you wanted to navigate to your documents folder. In that case, you'd need to type `cd \Documents\` into the command prompt. To collect data, navigate to the `DumpKinectSkeleton-v3.1.0` directory. If you've placed this folder in your Documents folder, you can copy and paste:
 
@@ -161,7 +163,7 @@ The GCS for Kinect is built using the IR sensor:
 
 
 
-The origin of this system is located at the center of the IR sensor. The Z-axis points away from the sensor, the X-axis points to the sensor's left, and the Y-axis is pointed upwards, which is dependent on the sensor's tilt. I believe Kinect includes an alogirthm that can find the floor to correct tilt errors, but I've found that being proacive with the sensor alignment works well if you don't mind the origin remaining in the center of the IR sensor. All coordinates are measured in meters, and the recommended depth of a participant is between 1.5-4.0m away from the sensor. Further information is provided in [Microsoft's SDK](https://docs.microsoft.com/en-us/previous-versions/windows/kinect/dn772836(v%3dieb.10)).
+The origin of this system is located at the center of the IR sensor. The Z-axis points away from the sensor, the X-axis points to the sensor's left, and the Y-axis is pointed upwards, which is dependent on the sensor's tilt. I believe Kinect includes an alogirthm that can find the floor to correct tilt errors, but I've found that being proactive with the sensor alignment works well if you don't mind the origin remaining in the center of the IR sensor. All coordinates are measured in meters, and the recommended depth of a participant is between 1.5-4.0m away from the sensor. Further information is provided in [Microsoft's SDK](https://docs.microsoft.com/en-us/previous-versions/windows/kinect/dn772836(v%3dieb.10)).
 
 
 
@@ -277,7 +279,7 @@ The csv file from this export will include the frame number, the time stamp corr
 
 You might be wondering why none of the data was filtered in the pipeline. The main reason for this is because the filtering methods are somewhat sensitive to the people and tasks one is planning to collect, so I didn't want to make that decision (yet). I'm hoping to include a boolean for filtering the data once I've decided how I want to deal with the "raw" quaternions in the future, but for now it's raw data only. For teaching purposes, I think this can either highlight the importance of filtering data and/or provide an opportunity to apply smoothing techniques to data you've collected yourself.
 
-Second, as eluded to earlier, the Kinect doesn't always collect at a consistent sample frequency. Depending on the processor and current computer load it can drop below the standard rate of 30fps. Personally, I've found it almost always samples at about 30fps on my 2015 13inch MacBook Pro running Windows 10, but regardless, resampling the data at a consistent frequency is necessary if you wanted to scale this to some other research application or assess the Kinect's validity. For teaching purposes, I think it would suffice to simply use the frame number or timestamps themselves to visualize the data. Alternatively, you can implement your own resampling algorithm.
+Second, as mentioned earlier, the Kinect doesn't always collect at a consistent sample frequency. Depending on the processor and current computer load it can drop below the standard rate of 30fps. Personally, I've found it almost always samples at about 30fps on my 2015 13inch MacBook Pro running Windows 10, but regardless, resampling the data at a consistent frequency is necessary if you wanted to scale this to some other research application or assess the Kinect's validity. For teaching purposes, I think it would suffice to simply use the frame number or timestamps themselves to visualize the data. Alternatively, you can implement your own resampling algorithm.
 
 Finally, I've only included rotations for the hip and knee joint as they can be applied for gait analysis or other lower extremity exercises. Given that upper extremity motion is quantified a bit differently (a different rotation sequence is recommended to the one provided in this pipeline) and it is less relevant to some of the "beginner" things I am exploring with this pipeline, I've omitted it. The principles outlined in this document should be helpful to guide future work and teaching projects for other joints.
 
