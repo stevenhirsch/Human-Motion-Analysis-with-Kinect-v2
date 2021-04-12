@@ -117,7 +117,7 @@ Third, I want to expand upon using the package for those unfamiliar with using a
 
 Then, unzip the folder and save it to another directory. I would suggest moving it into Documents, but you can hypothetically place this folder anywhere that you'll remember it. Then, you will need to open PowerShell.
 
-![](pictures/powerShell.png)
+![](pictures/powerShell.PNG)
 
 To navigate within PowerShell, you use the command `cd` followed by the pathname. For example, suppose you wanted to navigate to your documents folder. In that case, you'd need to type `cd \Documents\` into the command prompt. To collect data, navigate to the `DumpKinectSkeleton-v3.1.0` directory. If you've placed this folder in your Documents folder, you can copy and paste:
 
