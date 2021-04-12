@@ -12,15 +12,15 @@
 
 ### Main applications
 
-- Gross-level human motion analysis (e.g., strength and conditioning movement assessments)
+- Gross-level human motion analysis (e.g., strength and conditioning movement assessments).
 
 - Mediolateral, Anteroposterior, and Vertical Axis rotations for hip and knee joint (based on the International Society of Biomechanics (ISB) recommendations by [Wu and Cavanagh](https://www.ece.uvic.ca/~bctill/papers/mocap/Wu_Cavanagh_1995.pdf) (1995) and [Wu et al.](https://www.sciencedirect.com/science/article/pii/S0021929001002226?casa_token=2dAvjy8tpVsAAAAA:WMEtDcaXO0Jrg_GirWFR84c3w4etz7MzVceTSjGYivBhKOUqNOeWdkNDgGFfgN9g4q-3XHU43w) (2002). Also see [Research Methods in Biomechanics](https://www.amazon.ca/Research-Methods-Biomechanics-2nd-Gordon-Robertson/dp/0736093400) by Gordon Roberston et al. for more information)
 
-  - Joint center tracking (25 total "joints", elaborated on more below)
+  - Joint center tracking (25 total "joints", elaborated on more below).
 
-- Teaching tool for undergraduate or graduate students (depending on how much "raw" data is made available)
+- Teaching tool for undergraduate or graduate students (depending on how much "raw" data is made available).
 
-- Can be scaled for undergraduate and graduate students in kinesiology, physiotherapy, chiropractic, engineering, or related disciplines
+- Can be scaled for undergraduate and graduate students in kinesiology, physiotherapy, chiropractic, engineering, or related disciplines.
 
 - Much easier (and cheaper) to first learn with a markerless system relative to a marker-based system!
 
@@ -42,7 +42,7 @@
 
 ## tl;dr
 
-- `.\DumpKinectSkeleton.exe --prefix=<prefix>` is the command to collect the data with the connect. Make sure that a standing calibration (in anatomical position ) is collected along with any motion trials. This has been cloned from the [DumpKinectSkeleton repository created by sebtoun](https://github.com/sebtoun/DumpKinectSkeleton) (Sebastien Andary)
+- `.\DumpKinectSkeleton.exe --prefix=<prefix>` is the command to collect the data with the connect. Make sure that a standing calibration (in anatomical position ) is collected along with any motion trials. This has been cloned from the [DumpKinectSkeleton repository created by sebtoun](https://github.com/sebtoun/DumpKinectSkeleton) (Sebastien Andary).
 
   - only runs with Windows 8 or later.
 
