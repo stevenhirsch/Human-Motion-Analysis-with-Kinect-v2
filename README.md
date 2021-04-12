@@ -91,7 +91,7 @@ Many existing guides can direct people on how to get the Kinect "running" on you
 
 - After downloading the SDK and connecting the Kinect to your computer, you should be able to open Kinect Studio, click the connect button, and see something like this:
 
-![](pictures/KinectStudio_skeleton.png)
+![](pictures/KinectStudio_skeleton.PNG)
 
 I also like using Kinect Studio as an initial "check" of the data collection space.
 
