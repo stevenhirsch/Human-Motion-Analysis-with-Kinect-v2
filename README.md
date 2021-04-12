@@ -22,7 +22,7 @@
 
 - Can be scaled for undergraduate and graduate students in kinesiology, physiotherapy, chiropractic, engineering, or related disciplines
 
-  Much easier (and cheaper) to first learn with a markerless system relative to a marker-based system!
+- Much easier (and cheaper) to first learn with a markerless system relative to a marker-based system!
 
 
 
