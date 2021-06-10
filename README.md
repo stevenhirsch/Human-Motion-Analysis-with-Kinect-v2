@@ -193,15 +193,21 @@ Only a high-level overview is provided in this document. Please refer to the oth
 
 The first thing that needs to be done is reoriented the LCSs so they all use the same coordinate system. Since the orientation data are currently quaternions (and thus `orientation.W` is dependent only on the angle of rotation and not the axis), it's as simple as swaping and negating `orientation.X`, `orientation.Y`, and `orientation.Z` to convert them to a new coordinate system (this is possible since Kinect uses a right-handed system for all rotations). Therefore, the axes are redefined so that the LCSs are consistent between joints and match that of the ISB recommendation papers.
 
+#### 2.2.2 Resampling the data to 30Hz
 
+Since the Kinect does not collect at a consistent 30hz (its sampling rate is dependent on the current demands placed on the processor), the signals are resampled to a consistent 30Hz using the Fourier Method.
 
-#### 2.2.2 Creating orientation matrices
+#### 2.2.3 Smoothing the Quaternions
+
+The raw quaternion outputs from Kinect are quite jittery, and thus need to be smoothed. To smooth this data, I adapted the [following MatLab code](https://ww2.mathworks.cn/help/nav/ug/lowpass-filter-orientation-using-quaternion-slerp.html) whereby spherical linear interpolation was used to lowpass filter the noisy quaternions. More information about how this works can be located in the previous link.
+
+#### 2.2.4 Creating orientation matrices
 
 After the LCSs are reoriented to match that of the ISB recommendations, orientation matrices for each segment are built from the quaternion data. [See this Wikipedia page for more information](https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation) pertaininig to quaternions.
 
 
 
-#### 2.2.3 Normalizing orientations to anatomical position
+#### 2.2.5 Normalizing orientations to anatomical position
 
 It's common in most biomechanics work to define joint angles relative to anatomical position so that upright standing represents 0 degrees of rotation. This is done to assist with the interpretation of the calculated joint angles. Therefore, the first trial prior to any data collection session is usually a standing calibration where the participant is recorded while standing in what is referred to as anatomical position:
 
@@ -211,7 +217,7 @@ The normalized angle is computed using the orientation matrices from when the in
 
 
 
-#### 2.2.4 Transforming the proximal LCS to the distal LCS
+#### 2.2.6 Transforming the proximal LCS to the distal LCS
 
 Transforming the proximal LCS to the distal LCS is how joint angles are defined in biomechanics. For example, if we're interested in computing the knee angle, we are interested in assessing how much the shank has rotated relative to the thigh. Mathematically, this is described as multiplying the transpose of the orientation matrix of the thigh by the orientation matrix of the shank (because rotation matrices are orthogonal the transpose is equal to the inverse, which simplifies the computations). Remember, though, we want to compute these relative to anatomical position (i.e., the "calibration" position), so these calculations are modified slightly to include these orientations. More detail is provided specifically on page 57 of the Research Methods in Biomechanics textbook.
 
@@ -232,7 +238,7 @@ One thing to note is that the vocabulary for computing rotations are a little di
 
 Therefore, the knee in Kinect is computed by expressing the ankle center orientation relative to the knee center orientation. It's slightly odd to use the joints centers when joint angles are really expressing the relationships between segments, but it's just the way that Kinect decided to name things. I'm assuming this nomenclature is easier to follow if you were trying to build animations for video games, which is what the Kinect was designed to do, so we just need to get used to the vocabulary when doing biomechanical analyses.
 
-#### 2.2.5 Decomposing the rotation matrix
+#### 2.2.7 Decomposing the rotation matrix
 
 Great! We've now computed a rotation matrix for the knee. We're at the same abstract point as before with the quaternions, though, in that the rotation matrix for a joint is not very helpful for a practitioner. Thankfully, these matrices can be decomposed into something a little more interpretable using Cardan-Euler angles. An important caveat is that matrix multiplication is not commutative (which is the precise way of saying that multiplying rotation matrices A\*B is not equivalent to B\*A, as it would be for the real numbers). Therefore, the order of rotations that we specify during this decomposition matters. This can be illustrated with the following example. Use your left hand to make a coordinate system like this:
 
@@ -250,7 +256,7 @@ Although, it must be made clear that **motion about axes is not equivalent to mo
 
 
 
-#### 2.2.6 Data export
+#### 2.2.8 Data export
 
 The Python pipeline will automatically perform these computations and export the data into a new csv file for you to explore. To install the pipeline, either clone this repository, download it as a ZIP (green "code" button at the top of the screen) or create a `kinectPipeline.py` file in a text editor and then copy and paste the code from this repository into that file. The command to run the pipeline in PowerShell (or Terminal if you want to process the data using macOS or Linux), assuming the python file is located in your current working directory, is:
 
@@ -260,32 +266,28 @@ where the relative filepath for the data you'd like to process is written after 
 
 `python kinectPipeline.py -i data/p12_squats_body.csv -c data/p12_standcal_body.csv -o processed_data/p12_jointangles.csv`
 
-Which would take `p12_squats_body.csv` and `p12_standcal_body.csv` from the `data` directory and then save the resulting processed file, `p12_jointangles.csv` into an existing directory named `processed_data`.
+Which would take `p12_squats_body.csv` and `p12_standcal_body.csv` from the `data` directory and then save the resulting processed file, `p12_jointangles.csv` into an existing directory named `processed_data`. Note that the syntax to navigate between file systems on macOS/Linux and Windows is slightly different, so the above script would need to be modified accordingly.
 
 If you're like me and will amost certainly forget the syntax for this command and need to refresh yourself, you can use the argument `-h` for help.
 
-The csv file from this export will include the frame number, the time stamp corresponding to the frame number, and the mediolateral, anteroposterior, and vertical rotations of the hip and knee joint.
+The csv file from this export will include the frame number, the time stamp corresponding to the frame number (which has now been resampled), the mediolateral, anteroposterior, and vertical rotations of the hip and knee joint, and the global XYZ positions of every joint center the Kinect measures.
 
 
 
-#### 2.2.7 Miscellaneous data collection tips
+#### 2.2.9 Miscellaneous data collection tips
 
-- There is only one camera, so if any joints are occluded there will be larger errors in the resulting output. Do your best (without disturbing the "natural" motion of the participant) to ensure that joints are easily visible by the cameras for the entire collection to limit the interpolations that need to be done during post-processing.
-- Wait until the skeleton is found prior to initiating any movements. I would suggest providing a small buffer between the DumpKinectSkeleton command and the start of the exercise in all collections.
-
-
-
-#### 2.2.8 Intentional omissions
-
-You might be wondering why none of the data was filtered in the pipeline. The main reason for this is because the filtering methods are somewhat sensitive to the people and tasks one is planning to collect, so I didn't want to make that decision (yet). I'm hoping to include a boolean for filtering the data once I've decided how I want to deal with the "raw" quaternions in the future, but for now it's raw data only. For teaching purposes, I think this can either highlight the importance of filtering data and/or provide an opportunity to apply smoothing techniques to data you've collected yourself.
-
-Second, as mentioned earlier, the Kinect doesn't always collect at a consistent sample frequency. Depending on the processor and current computer load it can drop below the standard rate of 30fps. Personally, I've found it almost always samples at about 30fps on my 2015 13inch MacBook Pro running Windows 10, but regardless, resampling the data at a consistent frequency is necessary if you wanted to scale this to some other research application or assess the Kinect's validity. For teaching purposes, I think it would suffice to simply use the frame number or timestamps themselves to visualize the data. Alternatively, you can implement your own resampling algorithm.
-
-Finally, I've only included rotations for the hip and knee joint as they can be applied for gait analysis or other lower extremity exercises. Given that upper extremity motion is quantified a bit differently (a different rotation sequence is recommended to the one provided in this pipeline) and it is less relevant to some of the "beginner" things I am exploring with this pipeline, I've omitted it. The principles outlined in this document should be helpful to guide future work and teaching projects for other joints.
+- There is only one camera, so if any joints are occluded there will be larger errors in the resulting output. Do your best (without disturbing the "natural" motion of the participant) to ensure that joints are easily visible by the cameras for the entire collection.
+- Wait until the software finds the Kinect skeleton prior to initiating any movements. I would suggest providing a small buffer between the DumpKinectSkeleton command and the start of the movement trial.
 
 
 
-#### 2.2.9 Fun things to try for those who are keen to explore further and refine your modelling skills
+#### 2.2.10 Current omissions
+
+I've only included rotations for the hip and knee joint as they can be applied for gait analysis or other lower extremity exercises. Given that upper extremity motion is quantified a bit differently (a different rotation sequence is recommended to the one provided in this pipeline) and it is less relevant to some of the "beginner" things I am exploring with this pipeline, I've omitted it. The principles outlined in this document should be helpful to guide future work and teaching projects for other upper extremity joints.
+
+
+
+#### 2.2.11 Fun things to try for those who are keen to explore further and refine your modelling skills
 
 - use only quaternions to get the same rotations about the mediolateral, anteroposterior, and vertical axes
 - use PCA to "correct" for the potential errors in the second and third rotations, as in [Baudet et al. (2014)](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0102098) or [Skaro et al. (2021)](https://asmedigitalcollection.asme.org/biomechanical/article/143/5/054501/1096599?casa_token=MrUib7bkkdEAAAAA:ECwOFkkwHSiKUbQw7FXa7KvWmFnlCmMe9jzCVA1UbtV-BKGF4Sr5eXXNsie8vawP-pLnK6k) (note: the cross-talk errors are due to the difficulties in specifying the axes of rotation when using marker-based systems, which are technically not defined using any anatomical information with Kinect. Having said this, PCA will almost certainly reduce of the magnitude of the second and third rotations considerably in the Kinect)
@@ -296,8 +298,6 @@ Finally, I've only included rotations for the hip and knee joint as they can be 
 
 I have a few next steps planned for this repository. If you (or anyone you know) is interested in contributing to this repo or collaborating on some of these potential projects please let me know!
 
-- Filter quaternions (default is to filter data, but option to be included to get raw data)
-  - Extended Kalman filter?
 - (Recurrent) Neural Network to "correct" joint angle data relative to a multi-camera system (e.g., Qualisys, Vicon)
   - validation of both the "raw" Kinect and an ML correction alogrithm in comparison to gold-standard systems with more exercise tasks (e.g., squats, hinges, lunges, jumps)
 - Add joint angular velocities and accelerations

@@ -3,7 +3,10 @@ import sys, getopt
 import os
 import pandas as pd
 import numpy as np
+import pyquaternion as pyq
+from pyquaternion import Quaternion
 from scipy import signal
+from scipy.spatial.transform import Slerp
 from scipy.spatial.transform import Rotation as R
 
 
@@ -27,7 +30,7 @@ def main(argv):
         elif opt in ("-o", "--ofile"):
          outputfile = arg
 
-
+    # Creating Functions
     def orientation_matrix(q0, q1, q2, q3):
        # based on https://automaticaddison.com/how-to-convert-a-quaternion-to-a-rotation-matrix/
        r11 = 2 * (q0 ** 2 + q1 ** 2) - 1
@@ -117,16 +120,169 @@ def main(argv):
 
        return ml, ap, v
 
-    def butterworth_filter(data, fc, sf, order=4):
-       # data = data to be filtered
-       # fc = frequency cutoff of low-pass filter (i.e. all frequency components below this threshold are kept)
-       w = fc / (sf / 2)  # Normalize the frequency; sf = sample requency
-       b, a = signal.butter(order, w, 'low')  # order refers to the maximum number of delay elements used in the filter
-       output = signal.filtfilt(b, a, data, padlen=250)
-       return output
+    def resample_df(d, new_freq=30, method='linear'):
+        # Resamples data at 30Hz unless otherwise specified
+        joints_without_quats = [3, 15, 19, 21, 22, 23, 24]
+        resampled_df = pd.DataFrame(
+            columns=['# timestamp', ' jointType', ' orientation.X', ' orientation.Y', ' orientation.Z',
+                     ' orientation.W', ' position.X', ' position.Y', ' position.Z'])
+        new_df = pd.DataFrame()
+        for i in d[' jointType'].unique():
+            current_df = d.loc[d[' jointType'] == i].copy()
+            old_times = np.array(current_df['# timestamp'])
+            new_times = np.arange(min(current_df['# timestamp']), max(current_df['# timestamp']), 1 / new_freq)
+
+            o_x = np.array(current_df[' orientation.X'])
+            o_y = np.array(current_df[' orientation.Y'])
+            o_z = np.array(current_df[' orientation.Z'])
+            o_w = np.array(current_df[' orientation.W'])
+
+            p_x = np.array(current_df[' position.X'])
+            p_y = np.array(current_df[' position.Y'])
+            p_z = np.array(current_df[' position.Z'])
+
+            if i in joints_without_quats:
+                orientation_x = np.repeat(0.0, len(new_times))
+                orientation_y = np.repeat(0.0, len(new_times))
+                orientation_z = np.repeat(0.0, len(new_times))
+                orientation_w = np.repeat(0.0, len(new_times))
+            else:
+                if method == "linear":
+                    orientation_x = np.interp(new_times, old_times, o_x)
+                    orientation_y = np.interp(new_times, old_times, o_y)
+                    orientation_z = np.interp(new_times, old_times, o_z)
+                    orientation_w = np.interp(new_times, old_times, o_w)
+                elif method == 'slerp':
+                    quats = []
+                    for t in range(len(old_times)):
+                        quats.append([o_x[t], o_y[t], o_z[t], o_w[t]])
+                    # Create rotation object
+                    quats_object = R.from_quat(quats)
+
+                    # Spherical Linear Interpolation
+                    slerp = Slerp(np.array(current_df['# timestamp']), quats_object)
+                    interp_rots = slerp(new_times)
+                    new_quats = interp_rots.as_quat()
+
+                    # Create new orientation objects
+                    orientation_x = np.array([item[0] for item in new_quats])
+                    orientation_y = np.array([item[1] for item in new_quats])
+                    orientation_z = np.array([item[2] for item in new_quats])
+                    orientation_w = np.array([item[3] for item in new_quats])
+                else:
+                    raise ValueError("Method must be either linear or spherical (slerp) interpolation.")
+
+            position_x = signal.resample(p_x, num=int(max(current_df['# timestamp']) * new_freq))
+            position_y = signal.resample(p_y, num=int(max(current_df['# timestamp']) * new_freq))
+            position_z = signal.resample(p_z, num=int(max(current_df['# timestamp']) * new_freq))
+
+            new_df['# timestamp'] = pd.Series(new_times)
+            new_df[' jointType'] = pd.Series(np.repeat(i, len(new_times)))
+
+            new_df[' orientation.X'] = pd.Series(orientation_x)
+            new_df[' orientation.Y'] = pd.Series(orientation_y)
+            new_df[' orientation.Z'] = pd.Series(orientation_z)
+            new_df[' orientation.W'] = pd.Series(orientation_w)
+
+            new_df[' position.X'] = pd.Series(position_x)
+            new_df[' position.Y'] = pd.Series(position_y)
+            new_df[' position.Z'] = pd.Series(position_z)
+
+            resampled_df = resampled_df.append(new_df, ignore_index=True)
+
+        return resampled_df
+
+    def smooth_rotations(o_x, o_y, o_z, o_w):
+        o_x = np.array(o_x)
+        o_y = np.array(o_y)
+        o_z = np.array(o_z)
+        o_w = np.array(o_w)
+        trajNoisy = []
+        for i in range(len(o_x)):
+            trajNoisy.append([o_x[i], o_y[i], o_z[i], o_w[i]])
+
+        trajNoisy = np.array(trajNoisy)
+        # This code was adapted from https://ww2.mathworks.cn/help/nav/ug/lowpass-filter-orientation-using-quaternion-slerp.html
+
+        # As explained in the link above, "The interpolation parameter to slerp is in the closed-interval [0,1], so the output of dist
+        # must be re-normalized to this range. However, the full range of [0,1] for the interpolation parameter gives poor performance,
+        # so it is limited to a smaller range hrange centered at hbias."
+        hrange = 0.4
+        hbias = 0.4
+        low = max(min(hbias - (hrange / 2), 1), 0)
+        high = max(min(hbias + (hrange / 2), 1), 0)
+        hrangeLimited = high - low
+
+        # initial filter state is the quaternion at frame 0
+        y = trajNoisy[0]
+        qout = []
+
+        for i in range(1, len(trajNoisy)):
+            x = trajNoisy[i]
+            # x = mathutils.Quaternion(x)
+            # y = mathutils.Quaternion(y)
+            # d = x.rotation_difference(y).angle
+            x = pyq.Quaternion(x)
+            y = pyq.Quaternion(y)
+            d = (x.conjugate * y).angle
+            # Renormalize dist output to the range [low, high]
+
+            hlpf = (d / np.pi) * hrangeLimited + low
+            # y = y.slerp(x, hlpf)
+            y = Quaternion.slerp(y, x, hlpf).elements
+            qout.append(np.array(y))
+
+        # because a frame of data is lost during this process, I've (arbitrarily) decided to append an extra quaternion at the end of the trial
+        # that is identical to the n-1th frame. This keeps the length consistent (so there is no issues with merging later) and should not
+        # negatively impact the data since the last frame is rarely of interest (and the data collector can decide to collect for a split second
+        # after their trial of interest has completed to attenuate any of these "errors" that may propogate in the analyses)
+        qout.append(qout[int(len(qout) - 1)])
+
+        orientation_x = [item[0] for item in qout]
+        orientation_y = [item[1] for item in qout]
+        orientation_z = [item[2] for item in qout]
+        orientation_w = [item[3] for item in qout]
+
+        return orientation_x, orientation_y, orientation_z, orientation_w
+
+    def smooth_quaternions(d):
+        for i in d[' jointType'].unique():
+            current_df = d.loc[d[' jointType'] == i].copy()
+
+            current_df[' orientation.X'], current_df[' orientation.Y'], current_df[' orientation.Z'], current_df[
+                ' orientation.W'] = smooth_rotations(current_df[' orientation.X'], current_df[' orientation.Y'],
+                                                     current_df[' orientation.Z'], current_df[' orientation.W'])
+
+            d[d[' jointType'] == i] = current_df
+
+        return d
+
+    def compute_segment_angle(df, SEGMENT):
+        s = df[df[' jointType'] == SEGMENT]
+        ml = np.array([])
+        ap = np.array([])
+        v = np.array([])
+
+        # Compute Rotation Matrix Components
+        for i in range(s.shape[0]):
+            segment = np.asmatrix([
+                [np.array(s['n_o11'])[i], np.array(s['n_o12'])[i], np.array(s['n_o13'])[i]],
+                [np.array(s['n_o21'])[i], np.array(s['n_o22'])[i], np.array(s['n_o23'])[i]],
+                [np.array(s['n_o31'])[i], np.array(s['n_o32'])[i], np.array(s['n_o33'])[i]]
+            ])
+
+            # decomposition to Euler angles
+            rotations = R.from_matrix(segment).as_euler('xyz', degrees=True)
+            ml = np.append(ml, rotations[0])
+            ap = np.append(ap, rotations[1])
+            v = np.append(v, rotations[2])
+
+        return ml, ap, v
 
     dir = os.getcwd()
 
+    # Loading Data
+    print('... Loading data')
     cal = pd.read_csv(os.path.join(dir, calfile))
     df = pd.read_csv(os.path.join(dir, inputfile))
     df['# timestamp'] = df['# timestamp'] * 10 ** -3
@@ -186,6 +342,13 @@ def main(argv):
     cal_reoriented.loc[cal[' jointType'] == 14, ' orientation.Y'] = cal.loc[cal[' jointType'] == 14, ' orientation.Y'] * -1
     cal_reoriented.loc[cal[' jointType'] == 14, ' orientation.Z'] = cal.loc[cal[' jointType'] == 14, ' orientation.Z'] * -1
 
+    # Resampling data to 30Hz
+    df_reoriented = resample_df(df_reoriented, new_freq=30, method='slerp')
+    # Smooth Quaternion Rotations
+    df_reoriented = smooth_quaternions(df_reoriented)
+    # need to re-sort and reset the index following the resampling
+    df_reoriented = df_reoriented.sort_values(by=['# timestamp', ' jointType']).reset_index()
+
     df_reoriented['o11'], df_reoriented['o12'], df_reoriented['o13'], df_reoriented['o21'], df_reoriented['o22'], \
     df_reoriented['o23'], df_reoriented['o31'], df_reoriented['o32'], df_reoriented['o33'] \
         = orientation_matrix(df_reoriented[' orientation.W'], df_reoriented[' orientation.X'],
@@ -199,7 +362,7 @@ def main(argv):
     df_reoriented.set_index(' jointType', inplace=True)
     cal_reoriented.set_index(' jointType', inplace=True)
     cal_reoriented = cal_reoriented.groupby(' jointType').mean().drop(columns=['# timestamp'])
-    cal_reoriented = pd.concat([cal_reoriented] * np.int(df_reoriented.shape[0] / 25))
+    cal_reoriented = pd.concat([cal_reoriented] * np.int64(df_reoriented.shape[0] / 25))
 
     print('... Normalizing to calibration pose')
     # Normalize orientations to calibration pose
@@ -216,21 +379,87 @@ def main(argv):
     r_kneeFlexion, r_kneeAbduction, r_kneeV = compute_joint_angle(df_reoriented, child=18, parent=17)
     l_kneeFlexion, l_kneeAbduction, l_kneeV = compute_joint_angle(df_reoriented, child=14, parent=13)
 
+    # Note that 16 or 12 can be used for the pelvis (given Kinect's definitions)
+    pelvis_rotation = compute_segment_angle(df_reoriented, 16)[0]
+    r_thigh_rotation = compute_segment_angle(df_reoriented, 17)[0]
+    l_thigh_rotation = compute_segment_angle(df_reoriented, 13)[0]
+    r_shank_rotation = compute_segment_angle(df_reoriented, 18)[0]
+    l_shank_rotation = compute_segment_angle(df_reoriented, 14)[0]
+
     new_df = pd.DataFrame({
         'frame': np.arange(df_reoriented['# timestamp'].unique().shape[0]),
         'timeStamp': df_reoriented['# timestamp'].unique(),
-        'r_hipFlexion': r_hipFlexion,
-        'l_hipFlexion': l_hipFlexion * -1,
-        'r_hipAbduction': r_hipAbduction * -1,
-        'l_hipAbduction': l_hipAbduction,
-        'r_hipV': r_hipV * -1,
-        'l_hipV': l_hipV * -1,
-        'r_kneeFlexion': r_kneeFlexion * -1,
-        'l_kneeFlexion': l_kneeFlexion,
-        'r_kneeAdduction': r_kneeAbduction,
-        'l_kneeAdduction': l_kneeAbduction * -1,
-        'r_kneeV': r_kneeV * -1,
-        'l_kneeV': l_kneeV
+        'r_hipFlexion' : r_hipFlexion,
+        'l_hipFlexion' : l_hipFlexion*-1,
+        'r_hipAbduction' : r_hipAbduction*-1,
+        'l_hipAbduction' : l_hipAbduction,
+        'r_hipV' : r_hipV *-1,
+        'l_hipV' : l_hipV *-1,
+        'r_kneeFlexion' : r_kneeFlexion*-1,
+        'l_kneeFlexion' : l_kneeFlexion,
+        'r_kneeAdduction' : r_kneeAbduction,
+        'l_kneeAdduction' : l_kneeAbduction*-1,
+        'r_kneeV' : r_kneeV*-1,
+        'l_kneeV' : l_kneeV,
+        'pelvis_rotation': pelvis_rotation,
+        'r_thigh_rotation': r_thigh_rotation,
+        'l_thigh_rotation': l_thigh_rotation,
+        'r_shank_rotation': r_shank_rotation,
+        'l_shank_rotation': l_shank_rotation,
+        'r_hip_x': np.array(df_reoriented[df_reoriented[' jointType'] == 16][' position.X']),
+        'r_hip_y': np.array(df_reoriented[df_reoriented[' jointType'] == 16][' position.Y']),
+        'r_hip_z': np.array(df_reoriented[df_reoriented[' jointType'] == 16][' position.Z']),
+        'l_hip_x': np.array(df_reoriented[df_reoriented[' jointType'] == 12][' position.X']),
+        'l_hip_y': np.array(df_reoriented[df_reoriented[' jointType'] == 12][' position.Y']),
+        'l_hip_z': np.array(df_reoriented[df_reoriented[' jointType'] == 12][' position.Z']),
+        'r_knee_x': np.array(df_reoriented[df_reoriented[' jointType'] == 17][' position.X']),
+        'r_knee_y': np.array(df_reoriented[df_reoriented[' jointType'] == 17][' position.Y']),
+        'r_knee_z': np.array(df_reoriented[df_reoriented[' jointType'] == 17][' position.Z']),
+        'l_knee_x': np.array(df_reoriented[df_reoriented[' jointType'] == 13][' position.X']),
+        'l_knee_y': np.array(df_reoriented[df_reoriented[' jointType'] == 13][' position.Y']),
+        'l_knee_z': np.array(df_reoriented[df_reoriented[' jointType'] == 13][' position.Z']),
+        'r_ankle_x': np.array(df_reoriented[df_reoriented[' jointType'] == 18][' position.X']),
+        'r_ankle_y': np.array(df_reoriented[df_reoriented[' jointType'] == 18][' position.Y']),
+        'r_ankle_z': np.array(df_reoriented[df_reoriented[' jointType'] == 18][' position.Z']),
+        'l_ankle_x': np.array(df_reoriented[df_reoriented[' jointType'] == 14][' position.X']),
+        'l_ankle_y': np.array(df_reoriented[df_reoriented[' jointType'] == 14][' position.Y']),
+        'l_ankle_z': np.array(df_reoriented[df_reoriented[' jointType'] == 14][' position.Z']),
+        'r_foot_x': np.array(df_reoriented[df_reoriented[' jointType'] == 19][' position.X']),
+        'r_foot_y': np.array(df_reoriented[df_reoriented[' jointType'] == 19][' position.Y']),
+        'r_foot_z': np.array(df_reoriented[df_reoriented[' jointType'] == 19][' position.Z']),
+        'l_foot_x': np.array(df_reoriented[df_reoriented[' jointType'] == 15][' position.X']),
+        'l_foot_y': np.array(df_reoriented[df_reoriented[' jointType'] == 15][' position.Y']),
+        'l_foot_z': np.array(df_reoriented[df_reoriented[' jointType'] == 15][' position.Z']),
+        'spinebase_x': np.array(df_reoriented[df_reoriented[' jointType'] == 0][' position.X']),
+        'spinebase_y': np.array(df_reoriented[df_reoriented[' jointType'] == 0][' position.Y']),
+        'spinebase_z': np.array(df_reoriented[df_reoriented[' jointType'] == 0][' position.Z']),
+        'spinemid_x': np.array(df_reoriented[df_reoriented[' jointType'] == 1][' position.X']),
+        'spinemid_y': np.array(df_reoriented[df_reoriented[' jointType'] == 1][' position.Y']),
+        'spinemid_z': np.array(df_reoriented[df_reoriented[' jointType'] == 1][' position.Z']),
+        'neck_x': np.array(df_reoriented[df_reoriented[' jointType'] == 2][' position.X']),
+        'neck_y': np.array(df_reoriented[df_reoriented[' jointType'] == 2][' position.Y']),
+        'neck_z': np.array(df_reoriented[df_reoriented[' jointType'] == 2][' position.Z']),
+        'head_x': np.array(df_reoriented[df_reoriented[' jointType'] == 3][' position.X']),
+        'head_y': np.array(df_reoriented[df_reoriented[' jointType'] == 3][' position.Y']),
+        'head_z': np.array(df_reoriented[df_reoriented[' jointType'] == 3][' position.Z']),
+        'r_shoulder_x': np.array(df_reoriented[df_reoriented[' jointType'] == 8][' position.X']),
+        'r_shoulder_y': np.array(df_reoriented[df_reoriented[' jointType'] == 8][' position.Y']),
+        'r_shoulder_z': np.array(df_reoriented[df_reoriented[' jointType'] == 8][' position.Z']),
+        'r_elbow_x': np.array(df_reoriented[df_reoriented[' jointType'] == 9][' position.X']),
+        'r_elbow_y': np.array(df_reoriented[df_reoriented[' jointType'] == 9][' position.Y']),
+        'r_elbow_z': np.array(df_reoriented[df_reoriented[' jointType'] == 9][' position.Z']),
+        'r_wrist_x': np.array(df_reoriented[df_reoriented[' jointType'] == 10][' position.X']),
+        'r_wrist_y': np.array(df_reoriented[df_reoriented[' jointType'] == 10][' position.Y']),
+        'r_wrist_z': np.array(df_reoriented[df_reoriented[' jointType'] == 10][' position.Z']),
+        'l_shoulder_x': np.array(df_reoriented[df_reoriented[' jointType'] == 4][' position.X']),
+        'l_shoulder_y': np.array(df_reoriented[df_reoriented[' jointType'] == 4][' position.Y']),
+        'l_shoulder_z': np.array(df_reoriented[df_reoriented[' jointType'] == 4][' position.Z']),
+        'l_elbow_x': np.array(df_reoriented[df_reoriented[' jointType'] == 5][' position.X']),
+        'l_elbow_y': np.array(df_reoriented[df_reoriented[' jointType'] == 5][' position.Y']),
+        'l_elbow_z': np.array(df_reoriented[df_reoriented[' jointType'] == 5][' position.Z']),
+        'l_wrist_x': np.array(df_reoriented[df_reoriented[' jointType'] == 6][' position.X']),
+        'l_wrist_y': np.array(df_reoriented[df_reoriented[' jointType'] == 6][' position.Y']),
+        'l_wrist_z': np.array(df_reoriented[df_reoriented[' jointType'] == 6][' position.Z'])
     })
 
     new_df.to_csv(str(outputfile))
