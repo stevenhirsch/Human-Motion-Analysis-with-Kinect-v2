@@ -389,6 +389,7 @@ def main(argv):
     new_df = pd.DataFrame({
         'frame': np.arange(df_reoriented['# timestamp'].unique().shape[0]),
         'timeStamp': df_reoriented['# timestamp'].unique(),
+        # Below are adjusted for relatively easy anatomical interpretations
         'r_hipFlexion' : r_hipFlexion,
         'l_hipFlexion' : l_hipFlexion*-1,
         'r_hipAbduction' : r_hipAbduction*-1,
@@ -401,11 +402,13 @@ def main(argv):
         'l_kneeAdduction' : l_kneeAbduction*-1,
         'r_kneeV' : r_kneeV*-1,
         'l_kneeV' : l_kneeV,
-        'pelvis_rotation': pelvis_rotation*-1,
+        # Below are adjusted specifically for use with relative phase analyses
+        'pelvis_rotation': pelvis_rotation,
         'r_thigh_rotation': r_thigh_rotation,
         'l_thigh_rotation': l_thigh_rotation*-1,
-        'r_shank_rotation': r_shank_rotation*-1,
-        'l_shank_rotation': l_shank_rotation,
+        'r_shank_rotation': r_shank_rotation,
+        'l_shank_rotation': l_shank_rotation*-1,
+        # Below are left in the GCS
         'r_hip_x': np.array(df_reoriented[df_reoriented[' jointType'] == 16][' position.X']),
         'r_hip_y': np.array(df_reoriented[df_reoriented[' jointType'] == 16][' position.Y']),
         'r_hip_z': np.array(df_reoriented[df_reoriented[' jointType'] == 16][' position.Z']),
