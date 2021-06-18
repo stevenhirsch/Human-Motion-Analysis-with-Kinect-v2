@@ -81,6 +81,7 @@ Many existing guides can direct people on how to get the Kinect "running" on you
 - - Pandas (1.1.5)
   - NumPy (1.19.5)
   - SciPy (1.4.1)
+  - PyQuaternion (0.9.9)
 
 *Other Helpful Resources*
 
