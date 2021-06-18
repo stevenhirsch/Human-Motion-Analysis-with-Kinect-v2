@@ -77,8 +77,7 @@ Many existing guides can direct people on how to get the Kinect "running" on you
 - .NET Framework 4.5
 
 - Python 3.7 (recommended to create an environment using [Miniconda](https://docs.conda.io/projects/continuumio-conda/en/latest/user-guide/install/macos.html) or [Anaconda](https://docs.anaconda.com/anaconda/install/) to run locally or copy and paste into Google Colab- only required for data processing pipeline, not the Kinect itself)
-
-- Pandas (1.1.5)
+  -  Pandas (1.1.5)
   - NumPy (1.19.5)
   - SciPy (1.4.1)
   - PyQuaternion (0.9.9)
